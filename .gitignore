@@ -1,0 +1,21 @@
+# Игнорировать реальные файлы с секретами
+.env
+.env.local
+.env.*.local
+
+# Кэш и временные файлы Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Виртуальные окружения
+venv/
+.envrc
+*.envrc
+
+# Логи
+*.log
+
+# IDE и редакторы
+.vscode/
+.idea/
