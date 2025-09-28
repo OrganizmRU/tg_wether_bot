@@ -1,3 +1,4 @@
+import os
 import requests
 import argparse
 from datetime import datetime
@@ -11,9 +12,9 @@ def get_weather_on_cmd_line(location: str='Москва') -> None:
     location: str = validate_city_ufa(location)
 
     url: str = f"https://wttr.in/{location}?format=j1&lang=ru"
-    print(f'[->] Запрос по адресу {url}')
 
     try:
+        print(f'[->] Запрос по адресу {url}')
         response: requests.Response = requests.get(url)
         response.raise_for_status()  # Проверка на ошибки HTTP
         data: dict = response.json()
@@ -51,26 +52,45 @@ def get_weather_on_cmd_line(location: str='Москва') -> None:
 def save_weather_to_png(location: str='Москва', file_name: str | None = None) -> None:
     """Сохраняет текущую погоду из сервиса wttr.in в указанный файл PNG"""
 
+    # Проверка имени города для запроса
     encoded_location: str = encode_location(location)
+    encoded_location: str = validate_city_ufa(encoded_location)
 
     url: str = f'https://wttr.in/{encoded_location}_pm_lang=ru.png'
-    print(f'[->] Запрос по адресу {url}')
 
-    file_name = file_name or f'{location}_{get_time_now()}.png'
+    # Текущее время
+    time_now: str = get_time_now()
 
+    # Проверка имени файла для сохранения
+    file_name = file_name or f'{location}_{time_now}.png'
     if '.png' not in file_name:
         file_name += '.png'
 
-    try:
-        response: requests.Response = requests.get(url)
-        response.raise_for_status()  # Проверка на ошибки HTTP
+    # Проверка на уже существующий файл
+    if should_fetch_weather_data(location, time_now, folder_path='.'):
+        try:
+            print(f'[->] Запрос по адресу {url}')
+            response: requests.Response = requests.get(url)
+            response.raise_for_status()  # Проверка на ошибки HTTP
 
-        with open(file_name, 'wb') as file:
-            file.write(response.content)
+            with open(os.path.join('images', file_name), 'wb') as file:
+                file.write(response.content)
 
-        print(f"[+] Погода для города {location} сохранена в файл {file_name}")
-    except requests.RequestException as e:
-        print(f"[!] Ошибка при запросе: {e}")
+            print(f"[+] Погода для города {location} сохранена в файл {file_name}")
+        except requests.RequestException as e:
+            print(f"[!] Ошибка при запросе: {e}")
+    else:
+        print(f"[i] Файл {file_name} уже существует. Пропуск запроса.")
+
+def should_fetch_weather_data(city: str, time: str, folder_path: str = ".") -> bool:
+    """Проверяет, нужно ли запрашивать новые данные о погоде на основе времени последнего сохранения файла.
+    True - нужно запрашивать, тк файл не существует
+    False - не нужно запрашивать, тк файл уже есть"""
+
+    file_name = f"{city}_{time}.png"
+    file_path = os.path.join(folder_path, 'images', file_name)
+
+    return True if not os.path.exists(file_path) else False
 
 def encode_location(location: str) -> str:
     """Меняет все пробелы на '+' для URL по требованию API"""
