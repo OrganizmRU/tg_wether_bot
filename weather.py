@@ -90,7 +90,7 @@ def should_fetch_weather_data(city: str, time: str, folder_path: str = ".") -> b
     file_name = f"{city}_{time}.png"
     file_path = os.path.join(folder_path, 'images', file_name)
 
-    return True if not os.path.exists(file_path) else False
+    return False if os.path.exists(file_path) else True
 
 def encode_location(location: str) -> str:
     """Меняет все пробелы на '+' для URL по требованию API"""
