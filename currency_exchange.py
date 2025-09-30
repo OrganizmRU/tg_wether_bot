@@ -76,10 +76,12 @@ def get_current_exchange_rate(api_key: str, base_code: str='USD', target_code: s
     except requests.exceptions.HTTPError as e:
         print(f"[!] HTTP ошибка: {e}")
         return 0.0
-    except requests.RequestException as e:
+    except requests.RequestException as e:  # Включает в себя Timeout, ConnectionError, HTTPError и др.
         print(f"[!] Ошибка при запросе: {e}")
-    except KeyError as e:
-        print(f"[!] Ошибка при обработке данных: {e}")
+        return 0.0
+    except KeyError as e:   # Если отсутствует ключ в полученных данных JSON'а
+        print(f"[!] Ошибка при обработке данных: отсутствует ключ {e}")
+        return 0.0
 
 def get_history_exchange_rate(api_key: str, base_code: str='USD', target_code: str='RUB',
                               yyyy: str='2025', mm: str='01', dd: str='01', amount: str=1.0) -> float | None:
@@ -129,10 +131,10 @@ def get_history_exchange_rate(api_key: str, base_code: str='USD', target_code: s
     except requests.exceptions.HTTPError as e:
         print(f"[!] HTTP ошибка: {e}")
         return None
-    except requests.exceptions.RequestException as e:
+    except requests.RequestException as e: # Включает в себя Timeout, ConnectionError, HTTPError и др.
         print(f"[!] Ошибка при запросе: {e}")
         return None
-    except KeyError as e:
+    except KeyError as e:   # Если отсутствует ключ в полученных данных JSON'а
         print(f"[!] Ошибка при обработке данных: отсутствует ключ {e}")
         return None
 
