@@ -152,6 +152,22 @@ def validate_currency_arg(currency: str) -> str:
 
     return currency
 
+def validate_date(yyyy: str, mm: str, dd: str) -> bool:
+    """Проверяет валидность даты"""
+    try:
+        # Пробуем создать дату
+        date = datetime(int(yyyy), int(mm), int(dd))
+
+        # Дополнительная проверка - дата не должна быть в будущем
+        if date > datetime.now():
+            print("[!] Дата не может быть в будущем")
+            return False
+
+        return True
+    except ValueError as e:
+        print(f"[!] Некорректная дата: {e}")
+        return False
+
 def main() -> None:
     """Точка входа с парсингом аргументов из командной строки."""
 
@@ -161,12 +177,17 @@ def main() -> None:
     if not API_KEY:
         raise RuntimeError("API_KEY не задан")
 
-    # Получаем текущее время
-    print(f"[t] Текущее время: {get_time_now()}")
-
     # Создаем парсер
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="""Получение курса валют из сервиса exchangerate-api.com""",
-                                                              epilog='Пример использования:')
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="""
+    Получение курса валют из сервиса exchangerate-api.com
+    Страница документации: https://www.exchangerate-api.com/docs/overview""",
+    epilog="""
+    Примеры использования:
+    python currency_exchange.py current
+    python currency_exchange.py --base CAD --target RUB current
+    python currency_exchange.py --base CAD --target RUB convert 123.45
+    python currency_exchange.py --base CAD --target EUR history -y 2023 -m 10 -d 05 -a 100""",
+    formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Добавляем аргументы
     parser.add_argument('-bc', '--base',
@@ -195,10 +216,14 @@ def main() -> None:
     # Парсим аргументы
     args = parser.parse_args()
 
+    # Получаем текущее время
+    print(f"[t] Текущее время: {get_time_now()}")
+
     if args.command == 'current':
         get_current_exchange_rate(API_KEY, args.base, args.target)
     elif args.command == 'history':
-        get_history_exchange_rate(API_KEY, args.base, args.target, args.yyyy, args.mm, args.dd, args.amount)
+        if validate_date(args.yyyy, args.mm, args.dd):  # Проверяем валидность даты
+            get_history_exchange_rate(API_KEY, args.base, args.target, args.yyyy, args.mm, args.dd, args.amount)
     elif args.command == 'convert':
         rate = get_current_exchange_rate(API_KEY, args.base, args.target)
         if rate != 0.0:

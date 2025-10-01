@@ -15,13 +15,16 @@ def get_weather_on_cmd_line(location: str='Москва') -> None:
 
     try:
         print(f'[->] Запрос по адресу {url}')
-        response: requests.Response = requests.get(url)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-        data: dict = response.json()
+        response: requests.Response = requests.get(url, timeout=10)
+        response.raise_for_status()  # Проверка на ошибки HTTP, если статус 4xx/5xx → HTTPError
 
-        # Сохранение JSON в файл для отладки
-        #with open(f'json_{location}.txt', 'w') as file:
-        #    json.dump(data, file, indent=4, ensure_ascii=False)
+        try:
+            data: dict = response.json()
+            # Сохранение JSON в файл для отладки
+            #with open(f'json_{location}.txt', 'w') as file:
+            #json.dump(data, file, indent=4, ensure_ascii=False)
+        except ValueError as e:
+            print(f"[!] Ошибка декодирования JSON: {e}")
 
         current_weather: dict = data['current_condition'][0]
 
@@ -44,10 +47,19 @@ def get_weather_on_cmd_line(location: str='Москва') -> None:
             Описание: {weather_desc}
             Координаты: {latitude}, {longitude}""")
 
-    except requests.RequestException as e:
+    except requests.exceptions.Timeout:
+        print("[!] Таймаут при запросе к серверу")
+    except requests.exceptions.ConnectionError:
+        print("[!] Ошибка подключения: сервер недоступен")
+    except requests.exceptions.HTTPError as e:
+        print(f"[!] HTTP ошибка: {e}")
+    except requests.RequestException as e: # Включает в себя Timeout, ConnectionError, HTTPError и др.
         print(f"[!] Ошибка при запросе: {e}")
-    except KeyError as e:
+    except KeyError as e:   # При обработке данных JSON (dict), когда нет нужного ключа
         print(f"[!] Ошибка при обработке данных: {e}")
+
+    #ValueError → "У меня есть эта вещь, но она неправильная". Используется при при валидации введенных пользователем данных
+    #KeyError → "У меня вообще нет такой вещи". Используется при разборе JSON ответов от API
 
 def save_weather_to_png(location: str='Москва', file_name: str | None = None) -> None:
     """Сохраняет текущую погоду из сервиса wttr.in в указанный файл PNG"""
@@ -70,14 +82,21 @@ def save_weather_to_png(location: str='Москва', file_name: str | None = No
     if should_fetch_weather_data(location, time_now, folder_path='.'):
         try:
             print(f'[->] Запрос по адресу {url}')
-            response: requests.Response = requests.get(url)
-            response.raise_for_status()  # Проверка на ошибки HTTP
+            response: requests.Response = requests.get(url, timeout=10)
+            response.raise_for_status()  # Проверка на ошибки HTTP, если статус 4xx/5xx → HTTPError
 
             with open(os.path.join('images', file_name), 'wb') as file:
                 file.write(response.content)
 
             print(f"[+] Погода для города {location} сохранена в файл {file_name}")
-        except requests.RequestException as e:
+
+        except requests.exceptions.Timeout:
+            print("[!] Таймаут при запросе к серверу")
+        except requests.exceptions.ConnectionError:
+            print("[!] Ошибка подключения: сервер недоступен")
+        except requests.exceptions.HTTPError as e:
+            print(f"[!] HTTP ошибка: {e}")
+        except requests.RequestException as e:  # Включает в себя Timeout, ConnectionError, HTTPError и др.
             print(f"[!] Ошибка при запросе: {e}")
     else:
         print(f"[i] Файл {file_name} уже существует. Пропуск запроса.")
@@ -97,7 +116,7 @@ def encode_location(location: str) -> str:
     return location.replace(' ', '+')
 
 def get_time_now() -> str:
-    """Возвращает текущее время в формате ГГГГ.ММ.ДД_ЧЧ:ММ"""
+    """Возвращает текущее время в формате ГГГГ.ММ.ДД_ЧЧММ"""
     return datetime.now().strftime("%Y.%m.%d_%H%M")
 
 def validate_city_ufa(city: str) -> str:
@@ -126,10 +145,21 @@ def main() -> None:
     # Получаем текущее время
     print(f"[t] Текущее время: {get_time_now()}")
 
-    # Создаем парсер
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="""Получение и сохранение погоды из wttr.in (по умолчанию в PNG)
-                                                              Страница проекта: https://github.com/chubin/wttr.in?tab=readme-ov-file""",
-                                                              epilog='Пример использования: python weather.py --city "Екатеринбург" --image --filename "Екат_2025.09.27.png"')
+    # Создаем парсер и описание
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="""
+    Получение и сохранение погоды из wttr.in (по умолчанию в PNG)
+    Страница проекта: https://github.com/chubin/wttr.in?tab=readme-ov-file    """,
+    epilog="""
+    Примеры использования:
+    python weather.py --city Уфа
+    python weather.py --city Казань --filename Kazan_weather.png
+    python weather.py --city Москва --filename Москва_погода
+    python weather.py --city 'New York' --noimage    """,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    # Создаем папку для изображений, если ее нет
+    os.makedirs('images', exist_ok=True)
+
     # Добавляем аргументы
     parser.add_argument('--city',
                         type=validate_city_arg,
@@ -141,7 +171,7 @@ def main() -> None:
                         help='Сохранить погоду в файл (PNG)')
     parser.add_argument('--filename',
                         type=str,
-                        help='Имя файла для сохранения изображения погоды в формате PNG (по умолчанию <город>.png)')
+                        help='Имя файла для сохранения изображения погоды в формате PNG (по умолчанию <город>_<ГГГГ.ММ.ДД>_<ЧЧММ>.png)')
 
     # Парсим аргументы
     args = parser.parse_args()
